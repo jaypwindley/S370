@@ -1,0 +1,8 @@
+//LANA     JOB 'PDS DEL',
+//      CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
+//         EXEC   PGM=IDCAMS
+//SYSPRINT DD     SYSOUT=A
+//SYSIN    DD     *
+  DELETE WNDL.FOO(BAR)
+/*
+//
