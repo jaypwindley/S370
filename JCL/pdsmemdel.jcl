@@ -3,6 +3,6 @@
 //         EXEC   PGM=IDCAMS
 //SYSPRINT DD     SYSOUT=A
 //SYSIN    DD     *
-  DELETE WNDL.FOO(BAR)
+  DELETE WNDL.BAR(TEST1)
 /*
 //
