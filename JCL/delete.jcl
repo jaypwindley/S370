@@ -1,6 +1,8 @@
-//FIGGIS   JOB   'DS DELETE',
-//      CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
-//         EXEC  PGM=IEFBR14
-//FOO      DD    DSN=WNDL.FOO,DISP=(OLD,DELETE),
-//      UNIT=SYSDA,VOL=SER=MVSCAT
-//
+//***********************************************************************
+//* DELETE DATA SET
+//*
+//%STPNAME   EXEC  PGM=IEFBR14
+//DOOMED     DD    DSN=%DSN,
+//      DISP=(OLD,DELETE),
+//      UNIT=SYSDA,VOL=SER=%VOLSER
+
