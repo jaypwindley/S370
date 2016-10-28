@@ -1,0 +1,177 @@
+#!/bin/bash
+
+# Overridable variables.
+#
+RJE_HOST=$(hostname)
+RJE_PORT=3505
+VERBOSE="yes"
+
+# Private variables.
+#
+me=$(basename "$0")
+rcdir="${HOME}/.rje"
+jobseqfile="${rcdir}/jobseq"
+stepseqfile="${rcdir}/stepseq"
+
+#-----------------------------------------------------------------------
+# @fn verbose
+# If verbose flag is set, print the argument
+# @param 1 string to print
+#
+function verbose
+{
+    [ -z "${VERBOSE}" ] && return
+    (>&2 echo "//* $1")
+}
+
+
+#-----------------------------------------------------------------------
+#
+function error
+{
+    (>&2 echo "${me}: $1")
+}
+
+
+#-----------------------------------------------------------------------
+# @fn submit
+# Submit composed file to simulated IBM 3505 card reader
+# @param 1 
+function submit
+{
+    local jcl="$1"
+    verbose "submitting ${jcl} to $RJE_HOST:$RJE_PORT"
+    if [ -e "${jcl}" ]; then
+	cat "${jcl}" | netcat $RJE_HOST $RJE_PORT
+    else
+	error "internal error: $jcl does not exist"
+    fi
+}
+
+
+#-----------------------------------------------------------------------
+# @fn digits_of
+# @return the portion of the argument that is digits
+# @param 1 string from which to extract digits
+#
+function digits_of
+{
+    echo "$1" | tr -c -d "0123456789"
+}
+
+
+#-----------------------------------------------------------------------
+# @fn trunc_or_pad
+# @return string padded or truncated to width
+# @param 1 length
+# @param 2 string to truncate or pad
+#
+function trunc_or_pad
+{
+    local wid=$(digits_of "$1" )
+    local str="$2"
+    if [ -z "${wid}" -o "${wid}" == "0" ]; then
+	error "internal error: truncation width empty"
+	exit 16
+    fi
+    # kludge........
+    echo "${str}        " | head -c ${wid}
+}
+
+
+#-----------------------------------------------------------------------
+# @fn set_seq
+#
+function set_seq
+{
+    local path="$1"
+    local val=$(digits_of "$2")    
+    if [ -z "${path}" ]; then
+	error "internal error: no path for sequence number"
+	exit 23
+    fi
+    if [ -z "${val}" ]; then
+	error "internal error: sequence number empty"
+	exit 24
+    fi
+    verbose "setting sequence number ${val} in ${path}"
+    echo "${val}" > "${path}"
+}
+
+
+#-----------------------------------------------------------------------
+# @fn incr_seq
+# @return the sequence number in the path, which is then incremented
+# @param 1 the path of the sequence number's file
+#
+function incr_seq
+{
+    local path="$1"
+    if [ -z "${path}" ]; then
+	error "internal error: no path for sequence number"
+	exit 56
+    fi
+    val=$(digits_of $(cat "${path}"))
+    if [ -z "${val}" ]; then
+	error "internal error: malformed sequence file"
+	exit 57
+    fi
+    echo ${val}
+    [ ${val} -ge 9999 ] && val=0
+    verbose "incrementing ${path} from ${val}"
+    set_seq "${path}" $(expr "${val}" + 1)
+}
+
+
+#-----------------------------------------------------------------------
+# @fn seq_job
+# @fn seq_step
+# @return a uniquely incremented job or step number
+#
+function seq_job
+{
+    incr_seq "${jobseqfile}"
+}
+
+function seq_step
+{
+    incr_seq "${stepseqfile}"
+}
+
+
+#-----------------------------------------------------------------------
+# @fn stepname
+# @return a unique step name
+# @param 1 option prefix
+#
+function stepname
+{
+    local prefix="$1"
+    [ -z "${prefix}" ] && prefix="STEP"
+    verbose "stepname prefix ${prefix}"
+    stepseq=$(seq_step)
+    trunc_or_pad 8 "${prefix}${stepseq}"
+}
+
+
+#-----------------------------------------------------------------------
+# @fn rje_inti
+# Idempotently initialize the RJE facility
+#
+function rje_init
+{
+    verbose "making directory ${rcdir}"
+    mkdir -p "${rcdir}"
+
+    verbose "setting up sequence number files"
+    [ -e "${jobseqfile}" ]  || set_seq "${jobseqfile}"  0
+    [ -e "${stepseqfile}" ] || set_seq "${stepseqfile}" 0
+}
+
+
+########################################################################
+#                                MAIN PROGRAM
+
+rje_init
+
+exit 0
