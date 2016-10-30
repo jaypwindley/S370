@@ -2,9 +2,10 @@
 
 # Overridable variables.
 #
+JCL="."
 RJE_HOST=$(hostname)
 RJE_PORT=3505
-VERBOSE="yes"
+VERBOSE=""
 
 # Private variables.
 #
@@ -12,6 +13,50 @@ me=$(basename "$0")
 rcdir="${HOME}/.rje"
 jobseqfile="${rcdir}/jobseq"
 stepseqfile="${rcdir}/stepseq"
+dfltfile="${rcdir}/defaults"
+dryrun=""
+job_card="dflt-job.jcl"
+
+optstring="dhI:o:s:v"
+
+# Global substitutions.
+#
+subvars=(
+    DSN				# fully qualified dataset name
+    LIB				# DSN for library and DD
+    MEM				# PDS member name
+    PDS				# partitioned dataset name
+    PGM				# program name
+    VOLSER			# volume serial number
+)
+
+saveables=(
+    DSN
+    JCL
+    MEM
+    PDS
+    RJE_HOST
+    RJE_PORT
+    VOLSER
+)    
+
+
+function print_usage
+{
+    (>&2 cat <<EOF
+rje - Remote Job Entry, submit jobs to simulated IBM S/370
+rje [OPTIONS] [FILES]
+    -d          compose job but do not enter it
+    -h          this message
+    -I dir      specify JCL library
+    -j file     custom job card file
+    -o VAR=val  set variable and continue
+    -s VAR=val  save variable as default
+    -v          verbose output
+EOF
+     )
+}
+
 
 #-----------------------------------------------------------------------
 # @fn verbose
@@ -154,6 +199,24 @@ function stepname
 }
 
 
+function compose_job
+{
+    local tmppath=/tmp/rje.$$
+
+    echo "${tmppath}"
+}
+
+
+function save_saveables
+{
+    verbose "saving defaults"
+    echo "" > "${dfltfile}"
+    for var in ${saveables[*]}; do
+	echo "${var}=\"${!var}\"" >> "${dfltfile}"
+    done
+}
+
+
 #-----------------------------------------------------------------------
 # @fn rje_inti
 # Idempotently initialize the RJE facility
@@ -166,12 +229,48 @@ function rje_init
     verbose "setting up sequence number files"
     [ -e "${jobseqfile}" ]  || set_seq "${jobseqfile}"  0
     [ -e "${stepseqfile}" ] || set_seq "${stepseqfile}" 0
+
+    verbose "setting up defaults"
+    touch "${dfltfile}"
 }
+
 
 
 ########################################################################
 #                                MAIN PROGRAM
 
+source "${dfltfile}"
+
+# Gots to do this inline so we can set globals
+set - $(getopt "${optstring}" $*)
+while [ "$1" != "--" ]; do
+    case "$1" in
+	"-d" ) dry_run="y"                                            ;;
+	"-h" ) print_usage; exit 0;                                   ;;
+	"-I" ) JCL="$2";                                      shift;  ;;
+	"-j" ) job_card="$2";                                 shift;  ;;
+	"-o" ) eval "$2";                                     shift;  ;;
+	"-s" ) eval "$2"; dry_run="y";                        shift;  ;;
+	"-v" ) VERBOSE="y";                                           ;;
+	*) exit 1                                                     ;;
+    esac
+    shift $args
+done
+
 rje_init
+
+# Verbosely print operating variables.
+for f in ${subvars[*]}; do
+    verbose "default $(trunc_or_pad 7 $f) : ${!f}"
+done
+
+job_path=$(compose_job)
+
+if [ -z "${dry_run}" ]; then
+    echo "do job"
+fi
+
+save_saveables
+rm -f "${job_path}"
 
 exit 0
