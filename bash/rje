@@ -111,6 +111,26 @@ function digits_of
 
 
 #-----------------------------------------------------------------------
+# @fn is_jcl
+# @return true if path exists and contains JCL
+#
+function is_jcl
+{
+    local path="$1"
+    if [ ! -e "${path}" ]; then
+	echo ""
+	return 1
+    fi
+
+    if [ "$(head -c 2 ${path})" == "//" ]; then
+	return 0
+    else
+	return 1
+    fi
+}
+
+
+#-----------------------------------------------------------------------
 # @fn trunc_or_pad
 # @return string padded or truncated to width
 # @param 1 length
@@ -204,9 +224,37 @@ function stepname
 }
 
 
+#-----------------------------------------------------------------------
+# @fn resolve_path
+# @return qualified pathname of file or empty string if none
+# @param 1 relative path to locate
+#
+function resolve_path
+{
+    local path="$1"
+    if [ -e "./${path}" ]; then
+	echo "./${path}"
+	return
+    fi
+    if [ -e "${JCL}/${path}" ]; then
+	echo "${JCL}/${path}"
+	return
+    fi
+}
+
+
 function compose_job
 {
     local tmppath=/tmp/rje.$$
+
+    # Start with job card.
+    local card=$(resolve_path "${job_card}")
+    if [ -z "${card}" ]; then
+	error "cannot find job card"
+	echo ""
+	return
+    fi
+    verbose "job card ${card}"
 
     echo "${tmppath}"
 }
@@ -270,9 +318,9 @@ for f in ${subvars[*]}; do
     verbose "default $(trunc_or_pad 7 $f) : ${!f}"
 done
 
-job_path=$(compose_job)
 
 if [ -z "${dry_run}" ]; then
+    job_path=$(compose_job)
     submit "${entryfile}"
 fi
 
