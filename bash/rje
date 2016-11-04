@@ -15,9 +15,10 @@ jobseqfile="${rcdir}/jobseq"
 stepseqfile="${rcdir}/stepseq"
 dfltfile="${rcdir}/defaults"
 dryrun=""
+entryfile=""
 job_card="dflt-job.jcl"
 
-optstring="dhI:o:s:v"
+optstring="dhI:o:r:s:v"
 
 # Global substitutions.
 #
@@ -51,6 +52,7 @@ rje [OPTIONS] [FILES]
     -I dir      specify JCL library
     -j file     custom job card file
     -o VAR=val  set variable and continue
+    -r file     raw file, no substitutions
     -s VAR=val  save variable as default
     -v          verbose output
 EOF
@@ -85,9 +87,12 @@ function error
 function submit
 {
     local jcl="$1"
+    local vargs=""
+    [ -n "${VERBOSE}" ] && vargs="-vv"
+
     verbose "submitting ${jcl} to $RJE_HOST:$RJE_PORT"
     if [ -e "${jcl}" ]; then
-	cat "${jcl}" | netcat $RJE_HOST $RJE_PORT
+	cat "${jcl}" | netcat $vargs -q 1 $RJE_HOST $RJE_PORT
     else
 	error "internal error: $jcl does not exist"
     fi
@@ -239,7 +244,7 @@ function rje_init
 ########################################################################
 #                                MAIN PROGRAM
 
-source "${dfltfile}"
+[ -e "${dfltfile}" ] && source "${dfltfile}"
 
 # Gots to do this inline so we can set globals
 set - $(getopt "${optstring}" $*)
@@ -250,6 +255,7 @@ while [ "$1" != "--" ]; do
 	"-I" ) JCL="$2";                                      shift;  ;;
 	"-j" ) job_card="$2";                                 shift;  ;;
 	"-o" ) eval "$2";                                     shift;  ;;
+	"-r" ) entryfile="$2";                                shift;  ;;
 	"-s" ) eval "$2"; dry_run="y";                        shift;  ;;
 	"-v" ) VERBOSE="y";                                           ;;
 	*) exit 1                                                     ;;
@@ -267,7 +273,7 @@ done
 job_path=$(compose_job)
 
 if [ -z "${dry_run}" ]; then
-    echo "do job"
+    submit "${entryfile}"
 fi
 
 save_saveables
