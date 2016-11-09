@@ -31,6 +31,7 @@ subvars=(
     MEM				# PDS member name
     PDS				# partitioned dataset name
     PGM				# program name
+    STPNAME                     # step name
     VOLSER			# volume serial number
 )
 
@@ -129,7 +130,6 @@ function is_jcl
 {
     local path="$1"
     if [ ! -e "${path}" ]; then
-	echo ""
 	return 1
     fi
 
@@ -138,6 +138,16 @@ function is_jcl
     else
 	return 1
     fi
+}
+
+
+function is_step
+{
+    local path="$1"
+    if [ ! -e "${path}" ]; then
+	return 1
+    fi
+    fgrep '%STPNAME' "${path}" > /dev/null
 }
 
 
@@ -227,10 +237,10 @@ function seq_step
 #
 function uniqname
 {
-    local prefix="$1"
+    local sequencer="$1"
+    local prefix="$2"
     [ -z "${prefix}" ] && prefix="SEQ"
-    verbose "seqence prefix ${prefix}"
-    seq=$(seq_step)
+    seq=$($sequencer)
     trunc_or_pad 8 "${prefix}${seq}"
 }
 
@@ -256,7 +266,16 @@ function resolve_path
 
 sub_and_append()
 {
-    error "sub and append $*"
+    local dst_file="$1"
+    local src_file="$2"
+    shift 2
+
+    scripts=()
+    for var in $*; do
+	scripts+=('-e')
+	scripts+=("s/%${var}/${!var}/g")
+    done
+    cat "${src_file}" | sed "${scripts[@]}" >> "${dst_file}"
 }
 
 
@@ -276,11 +295,29 @@ function compose_job
     fi
     verbose "job card ${card}"
     if [ -z "${JOBNAME}" ]; then
-	JOBNAME=$(uniqname "J")
+	JOBNAME=$(uniqname "seq_job" "JOB")
     fi
-    verbose "job name ${JOBNAME}"
+    verbose "job name '${JOBNAME}'"
     sub_and_append "${tmppath}" "${card}" ${jobvars[*]}
 
+    # ...then each file in turn
+    for f in $*; do
+	path=$(resolve_path "${f}")
+	if [ -z "${path}" ]; then
+	    error "$f: not found"
+	    continue
+	fi
+	if is_jcl "${path}"; then
+	    if is_step "${path}"; then
+		STPNAME=$(uniqname "seq_step" "STP")
+	    fi
+	    sub_and_append "${tmppath}" "${path}" ${subvars[*]}
+	else
+	    cat "${path}" >> "${tmppath}"
+	    echo "/*" >> "${tmppath}"
+	fi
+    done
+    echo "//" >> "${tmppath}"
     echo "${tmppath}"
 }
 
@@ -344,7 +381,8 @@ for f in ${subvars[*]}; do
     verbose "default $(trunc_or_pad 7 $f) : ${!f}"
 done
 
-job_path=$(compose_job)
+shift
+job_path=$(compose_job $*)
 
 if [ -z "${dry_run}" ]; then
     submit "${entryfile}"
