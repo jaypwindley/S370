@@ -6,6 +6,8 @@ JCL="."
 RJE_HOST=$(hostname)
 RJE_PORT=3505
 VERBOSE=""
+JOBNAME=""
+JOBDESC=""
 
 # Private variables.
 #
@@ -15,10 +17,11 @@ jobseqfile="${rcdir}/jobseq"
 stepseqfile="${rcdir}/stepseq"
 dfltfile="${rcdir}/defaults"
 dryrun=""
+writeout=""
 entryfile=""
 job_card="dflt-job.jcl"
 
-optstring="dhI:o:r:s:v"
+optstring="dhI:o:r:s:vw"
 
 # Global substitutions.
 #
@@ -29,6 +32,13 @@ subvars=(
     PDS				# partitioned dataset name
     PGM				# program name
     VOLSER			# volume serial number
+)
+
+# Substitutions for job cards only
+#
+jobvars=(
+    JOBNAME
+    JOBDESC
 )
 
 saveables=(
@@ -55,6 +65,7 @@ rje [OPTIONS] [FILES]
     -r file     raw file, no substitutions
     -s VAR=val  save variable as default
     -v          verbose output
+    -w          write out the job stream
 EOF
      )
 }
@@ -210,17 +221,17 @@ function seq_step
 
 
 #-----------------------------------------------------------------------
-# @fn stepname
+# @fn uniqname
 # @return a unique step name
 # @param 1 option prefix
 #
-function stepname
+function uniqname
 {
     local prefix="$1"
-    [ -z "${prefix}" ] && prefix="STEP"
-    verbose "stepname prefix ${prefix}"
-    stepseq=$(seq_step)
-    trunc_or_pad 8 "${prefix}${stepseq}"
+    [ -z "${prefix}" ] && prefix="SEQ"
+    verbose "seqence prefix ${prefix}"
+    seq=$(seq_step)
+    trunc_or_pad 8 "${prefix}${seq}"
 }
 
 
@@ -243,6 +254,15 @@ function resolve_path
 }
 
 
+sub_and_append()
+{
+    error "sub and append $*"
+}
+
+
+#-----------------------------------------------------------------------
+# @fn compose_job
+#
 function compose_job
 {
     local tmppath=/tmp/rje.$$
@@ -255,12 +275,17 @@ function compose_job
 	return
     fi
     verbose "job card ${card}"
+    if [ -z "${JOBNAME}" ]; then
+	JOBNAME=$(uniqname "J")
+    fi
+    verbose "job name ${JOBNAME}"
+    sub_and_append "${tmppath}" "${card}" ${jobvars[*]}
 
     echo "${tmppath}"
 }
 
 
-function save_saveables
+save_saveables()
 {
     verbose "saving defaults"
     echo "" > "${dfltfile}"
@@ -274,7 +299,7 @@ function save_saveables
 # @fn rje_inti
 # Idempotently initialize the RJE facility
 #
-function rje_init
+rje_init()
 {
     verbose "making directory ${rcdir}"
     mkdir -p "${rcdir}"
@@ -306,6 +331,7 @@ while [ "$1" != "--" ]; do
 	"-r" ) entryfile="$2";                                shift;  ;;
 	"-s" ) eval "$2"; dry_run="y";                        shift;  ;;
 	"-v" ) VERBOSE="y";                                           ;;
+	"-w" ) writeout="y";                                          ;;
 	*) exit 1                                                     ;;
     esac
     shift $args
@@ -318,13 +344,17 @@ for f in ${subvars[*]}; do
     verbose "default $(trunc_or_pad 7 $f) : ${!f}"
 done
 
+job_path=$(compose_job)
 
 if [ -z "${dry_run}" ]; then
-    job_path=$(compose_job)
     submit "${entryfile}"
 fi
 
 save_saveables
+if [ -n "${writeout}" -a -e "${job_path}" ]; then
+    cat "${job_path}"
+fi
+
 rm -f "${job_path}"
 
 exit 0
