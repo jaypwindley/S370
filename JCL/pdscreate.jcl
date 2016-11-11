@@ -1,7 +1,9 @@
-//CREAT    JOB    'PDS CREATE',
-//      CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
-//         EXEC  PGM=IEFBR14
-//PDS      DD    DSN=WNDL.BAR,DISP=(NEW,CATLG),
+//***********************************************************************
+//* CREATE A NEW PARTITIONED DATASET
+//*
+//%STPNAME   EXEC  PGM=IEFBR14
+//PDS        DD    DSN=%PDS,
+//      DISP=(NEW,CATLG),
 //      DCB=(RECFM=FB,LRECL=80,BLKSIZE=400,DSORG=PO),
-//      UNIT=SYSDA,VOL=SER=PUB002,SPACE=(TRK,(50,20,5))
-//
+//      UNIT=SYSDA,VOL=SER=%VOLSER,
+//      SPACE=(%PHYS,(%SIZE,%ISIZE,10))
