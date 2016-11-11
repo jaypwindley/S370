@@ -27,10 +27,13 @@ optstring="dhI:o:r:s:vw"
 #
 subvars=(
     DSN				# fully qualified dataset name
+    ISIZE
     LIB				# DSN for library and DD
     MEM				# PDS member name
     PDS				# partitioned dataset name
+    PHYS
     PGM				# program name
+    SIZE
     STPNAME                     # step name
     VOLSER			# volume serial number
 )
@@ -303,12 +306,14 @@ function compose_job
     # ...then each file in turn
     for f in $*; do
 	path=$(resolve_path "${f}")
+	verbose "adding path ${path}"
 	if [ -z "${path}" ]; then
 	    error "$f: not found"
 	    continue
 	fi
 	if is_jcl "${path}"; then
 	    if is_step "${path}"; then
+		verbose "substituting variables in ${path}"
 		STPNAME=$(uniqname "seq_step" "STP")
 	    fi
 	    sub_and_append "${tmppath}" "${path}" ${subvars[*]}
@@ -382,17 +387,17 @@ for f in ${subvars[*]}; do
 done
 
 shift
-job_path=$(compose_job $*)
+entryfile=$(compose_job $*)
 
 if [ -z "${dry_run}" ]; then
     submit "${entryfile}"
 fi
 
 save_saveables
-if [ -n "${writeout}" -a -e "${job_path}" ]; then
-    cat "${job_path}"
+if [ -n "${writeout}" -a -e "${entryfile}" ]; then
+    cat "${entryfile}"
 fi
 
-rm -f "${job_path}"
+rm -f "${entryfile}"
 
 exit 0
