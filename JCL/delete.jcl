@@ -5,4 +5,3 @@
 //DOOMED     DD    DSN=%DSN,
 //      DISP=(OLD,DELETE),
 //      UNIT=SYSDA,VOL=SER=%VOLSER
-
