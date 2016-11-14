@@ -387,7 +387,9 @@ for f in ${subvars[*]}; do
 done
 
 shift
-entryfile=$(compose_job $*)
+if [ -z "${entryfile}" ]; then
+    entryfile=$(compose_job $*)
+fi
 
 if [ -z "${dry_run}" ]; then
     submit "${entryfile}"
@@ -398,6 +400,8 @@ if [ -n "${writeout}" -a -e "${entryfile}" ]; then
     cat "${entryfile}"
 fi
 
-rm -f "${entryfile}"
+if [ "$(echo ${entryfile} | head -c 5)" == "/tmp/" ]; then
+    rm -f "${entryfile}"
+fi
 
 exit 0
